@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consulta de Usuários</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --surface2: #f0eeea;
+      --border: rgba(0,0,0,0.1);
+      --border2: rgba(0,0,0,0.18);
+      --text: #1a1917;
+      --text2: #6b6a66;
+      --text3: #a8a7a3;
+      --accent: #1a1917;
+      --accent-fg: #ffffff;
+      --highlight: #ffe566;
+      --green-bg: #e6f4d7;
+      --green-fg: #2d6a0a;
+      --red-bg: #fde8e8;
+      --red-fg: #a32020;
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141413;
+        --surface: #1e1d1b;
+        --surface2: #2a2926;
+        --border: rgba(255,255,255,0.09);
+        --border2: rgba(255,255,255,0.16);
+        --text: #f0ede8;
+        --text2: #9a9892;
+        --text3: #5e5d59;
+        --accent: #f0ede8;
+        --accent-fg: #1a1917;
+        --highlight: #8a7200;
+        --green-bg: #1a3008;
+        --green-fg: #7ecb45;
+        --red-bg: #3a0d0d;
+        --red-fg: #f08080;
+      }
+    }
+
+    body {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    header { margin-bottom: 2rem; }
+    header h1 {
+      font-size: clamp(22px, 3vw, 30px);
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+    header p { font-size: 14px; color: var(--text2); margin-top: 4px; font-family: 'Helvetica Neue', Arial, sans-serif; }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 1.5rem;
+      background: var(--surface2);
+      padding: 5px;
+      border-radius: var(--radius);
+      border: 0.5px solid var(--border);
+      width: fit-content;
+    }
+    .tab {
+      padding: 8px 20px;
+      border-radius: calc(var(--radius) - 3px);
+      font-size: 13px;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-weight: 500;
+      background: transparent;
+      color: var(--text2);
+      border: none;
+      cursor: pointer;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .tab svg { width: 15px; height: 15px; flex-shrink: 0; }
+    .tab:hover { color: var(--text); background: var(--surface); }
+    .tab.active { background: var(--accent); color: var(--accent-fg); }
+    .tab .badge {
+      background: rgba(255,255,255,0.25);
+      color: inherit;
+      font-size: 11px;
+      padding: 1px 7px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .tab:not(.active) .badge { background: var(--border2); color: var(--text2); }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 1.5px dashed var(--border2);
+      border-radius: var(--radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: var(--surface);
+    }
+    .upload-zone:hover { border-color: var(--text2); background: var(--surface2); }
+    .upload-zone svg { width: 40px; height: 40px; color: var(--text3); margin-bottom: 14px; }
+    .upload-zone h3 { font-size: 16px; font-weight: 600; font-family: 'Helvetica Neue', Arial, sans-serif; margin-bottom: 6px; }
+    .upload-zone p { font-size: 13px; color: var(--text2); font-family: 'Helvetica Neue', Arial, sans-serif; }
+    .upload-zone span { font-size: 12px; color: var(--text3); margin-top: 6px; display: block; font-family: 'Helvetica Neue', Arial, sans-serif; }
+    .file-input { display: none; }
+
+    /* Search */
+    .search-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 1rem;
+      align-items: center;
+    }
+    .search-wrap {
+      position: relative;
+      flex: 1;
+    }
+    .search-wrap svg.ico-search {
+      position: absolute;
+      left: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 17px;
+      height: 17px;
+      color: var(--text3);
+      pointer-events: none;
+    }
+    .search-wrap input {
+      width: 100%;
+      padding: 11px 40px 11px 40px;
+      font-size: 15px;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-wrap input:focus {
+      border-color: var(--text2);
+      box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+    }
+    .search-wrap input::placeholder { color: var(--text3); }
+    .btn-clear {
+      position: absolute;
+      right: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--surface2);
+      border: none;
+      cursor: pointer;
+      color: var(--text2);
+      font-size: 13px;
+      padding: 3px 7px;
+      border-radius: 4px;
+      display: none;
+      font-family: monospace;
+      line-height: 1;
+    }
+    .btn-clear:hover { background: var(--border2); }
+
+    .btn-reload {
+      padding: 10px 16px;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 13px;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .btn-reload svg { width: 15px; height: 15px; }
+    .btn-reload:hover { color: var(--text); border-color: var(--text2); }
+
+    /* Stats */
+    .stats-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+    .stat {
+      background: var(--surface2);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 14px;
+      font-size: 13px;
+      color: var(--text2);
+    }
+    .stat b { color: var(--text); font-weight: 600; }
+
+    /* Table */
+    .table-wrap {
+      overflow-x: auto;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+    thead { background: var(--surface2); position: sticky; top: 0; z-index: 2; }
+    th {
+      padding: 11px 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text2);
+      border-bottom: 0.5px solid var(--border2);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    th:hover { color: var(--text); }
+    th .sort-icon { margin-left: 4px; opacity: .35; }
+    th.sorted .sort-icon { opacity: 1; color: var(--text); }
+    td {
+      padding: 10px 16px;
+      border-bottom: 0.5px solid var(--border);
+      color: var(--text);
+      vertical-align: middle;
+      max-width: 240px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    mark.hl {
+      background: var(--highlight);
+      border-radius: 2px;
+      padding: 0 1px;
+      color: inherit;
+    }
+    .empty-state {
+      padding: 3rem;
+      text-align: center;
+      color: var(--text3);
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+    .empty-state svg { width: 36px; height: 36px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    /* Scrollbar */
+    .table-wrap::-webkit-scrollbar { height: 5px; }
+    .table-wrap::-webkit-scrollbar-track { background: var(--surface2); }
+    .table-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Consulta de Usuários</h1>
+    <p>Importe a planilha e pesquise instantaneamente • Suporta .xlsx e .xls</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('dados')" id="tab-dados">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Dados usuários
+      <span class="badge" id="badge-dados">0</span>
+    </button>
+    <button class="tab" onclick="switchTab('excluidos')" id="tab-excluidos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="11" x2="23" y2="17"/><line x1="23" y1="11" x2="17" y2="17"/></svg>
+      Usuários excluídos
+      <span class="badge" id="badge-excluidos">0</span>
+    </button>
+  </div>
+
+  <!-- PAINEL DADOS USUARIOS -->
+  <div class="panel active" id="panel-dados">
+    <div id="upload-dados">
+      <div class="upload-zone" onclick="document.getElementById('file-dados').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <h3>Importar planilha — Dados Usuários</h3>
+        <p>Clique aqui para selecionar o arquivo</p>
+        <span>Formatos aceitos: .xlsx · .xls · .csv</span>
+      </div>
+      <input type="file" class="file-input" id="file-dados" accept=".xlsx,.xls,.csv" onchange="loadFile(event,'dados')">
+    </div>
+    <div id="search-dados" style="display:none">
+      <div class="search-row">
+        <div class="search-wrap">
+          <svg class="ico-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="q-dados" placeholder="Pesquisar em todos os campos..." oninput="filterTable('dados')" autocomplete="off" />
+          <button class="btn-clear" id="clear-dados" onclick="clearSearch('dados')">✕</button>
+        </div>
+        <button class="btn-reload" onclick="resetTab('dados')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.33"/></svg>
+          Trocar arquivo
+        </button>
+      </div>
+      <div class="stats-row" id="stats-dados"></div>
+      <div class="table-wrap">
+        <table id="tbl-dados">
+          <thead id="thead-dados"></thead>
+          <tbody id="tbody-dados"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAINEL USUARIOS EXCLUIDOS -->
+  <div class="panel" id="panel-excluidos">
+    <div id="upload-excluidos">
+      <div class="upload-zone" onclick="document.getElementById('file-excluidos').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <h3>Importar planilha — Usuários Excluídos</h3>
+        <p>Clique aqui para selecionar o arquivo</p>
+        <span>Formatos aceitos: .xlsx · .xls · .csv</span>
+      </div>
+      <input type="file" class="file-input" id="file-excluidos" accept=".xlsx,.xls,.csv" onchange="loadFile(event,'excluidos')">
+    </div>
+    <div id="search-excluidos" style="display:none">
+      <div class="search-row">
+        <div class="search-wrap">
+          <svg class="ico-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="q-excluidos" placeholder="Pesquisar em todos os campos..." oninput="filterTable('excluidos')" autocomplete="off" />
+          <button class="btn-clear" id="clear-excluidos" onclick="clearSearch('excluidos')">✕</button>
+        </div>
+        <button class="btn-reload" onclick="resetTab('excluidos')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.33"/></svg>
+          Trocar arquivo
+        </button>
+      </div>
+      <div class="stats-row" id="stats-excluidos"></div>
+      <div class="table-wrap">
+        <table id="tbl-excluidos">
+          <thead id="thead-excluidos"></thead>
+          <tbody id="tbody-excluidos"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  dados:     { rows: [], headers: [], sortCol: -1, sortDir: 1 },
+  excluidos: { rows: [], headers: [], sortCol: -1, sortDir: 1 }
+};
+
+function switchTab(tab) {
+  ['dados','excluidos'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('panel-' + t).classList.toggle('active', t === tab);
+  });
+}
+
+function loadFile(event, tab) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      let json, headers;
+
+      if (file.name.endsWith('.csv')) {
+        // CSV simples
+        const text = new TextDecoder('utf-8').decode(new Uint8Array(e.target.result));
+        const wb = XLSX.read(text, { type: 'string' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      } else {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+
+        // Tenta encontrar a aba pelo nome
+        const targetNames = {
+          dados:     ['dados usuarios','dados_usuarios','dados usuários','usuários','usuarios'],
+          excluidos: ['usuarios excluidos','usuarios_excluidos','usuários excluídos','excluidos','excluídos','deletados']
+        };
+        const targets = targetNames[tab];
+        let sheetName = wb.SheetNames.find(n => targets.includes(n.toLowerCase().trim()));
+        if (!sheetName) sheetName = wb.SheetNames[tab === 'dados' ? 0 : Math.min(1, wb.SheetNames.length - 1)];
+
+        const ws = wb.Sheets[sheetName];
+        json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      }
+
+      if (!json.length) { alert('A planilha parece estar vazia ou sem dados.'); return; }
+
+      headers = Object.keys(json[0]);
+      state[tab].headers = headers;
+      state[tab].rows = json;
+      state[tab].sortCol = -1;
+      state[tab].sortDir = 1;
+
+      document.getElementById('badge-' + tab).textContent = json.length;
+      buildTable(tab);
+
+      document.getElementById('upload-' + tab).style.display = 'none';
+      document.getElementById('search-' + tab).style.display = 'block';
+      setTimeout(() => document.getElementById('q-' + tab).focus(), 50);
+    } catch(err) {
+      console.error(err);
+      alert('Erro ao ler o arquivo. Verifique se é um .xlsx, .xls ou .csv válido.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function buildTable(tab) {
+  const { headers } = state[tab];
+  const thead = document.getElementById('thead-' + tab);
+  thead.innerHTML = '<tr>' + headers.map((h, i) =>
+    `<th onclick="sortTable('${tab}',${i})" id="th-${tab}-${i}">${h} <span class="sort-icon" id="si-${tab}-${i}">⇅</span></th>`
+  ).join('') + '</tr>';
+  filterTable(tab);
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function highlight(text, query) {
+  const safe = esc(text);
+  if (!query) return safe;
+  const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+  return safe.replace(re, '<mark class="hl">$1</mark>');
+}
+
+function filterTable(tab) {
+  const query = (document.getElementById('q-' + tab).value || '').toLowerCase().trim();
+  document.getElementById('clear-' + tab).style.display = query ? 'inline-block' : 'none';
+
+  const { rows, headers, sortCol, sortDir } = state[tab];
+  let filtered = query
+    ? rows.filter(row => headers.some(h => String(row[h]).toLowerCase().includes(query)))
+    : rows;
+
+  if (sortCol >= 0) {
+    const key = headers[sortCol];
+    filtered = [...filtered].sort((a, b) => {
+      const av = a[key], bv = b[key];
+      const an = parseFloat(av), bn = parseFloat(bv);
+      if (!isNaN(an) && !isNaN(bn)) return (an - bn) * sortDir;
+      return String(av).localeCompare(String(bv), 'pt-BR') * sortDir;
+    });
+  }
+
+  const tbody = document.getElementById('tbody-' + tab);
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="${headers.length}" class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+      <p>Nenhum resultado para "<strong>${esc(query)}</strong>"</p>
+    </td></tr>`;
+  } else {
+    tbody.innerHTML = filtered.map(row =>
+      '<tr>' + headers.map(h =>
+        `<td title="${esc(row[h])}">${highlight(row[h], query)}</td>`
+      ).join('') + '</tr>'
+    ).join('');
+  }
+
+  const stats = document.getElementById('stats-' + tab);
+  stats.innerHTML = `<div class="stat">Total: <b>${rows.length}</b></div>`
+    + (query ? `<div class="stat">Encontrados: <b>${filtered.length}</b></div>` : '');
+}
+
+function sortTable(tab, colIdx) {
+  const s = state[tab];
+  if (s.sortCol === colIdx) { s.sortDir *= -1; } else { s.sortCol = colIdx; s.sortDir = 1; }
+
+  document.querySelectorAll(`#thead-${tab} th`).forEach((th, i) => {
+    th.classList.toggle('sorted', i === colIdx);
+    const icon = document.getElementById(`si-${tab}-${i}`);
+    if (icon) icon.textContent = i === colIdx ? (s.sortDir === 1 ? '↑' : '↓') : '⇅';
+  });
+
+  filterTable(tab);
+}
+
+function clearSearch(tab) {
+  document.getElementById('q-' + tab).value = '';
+  filterTable(tab);
+  document.getElementById('q-' + tab).focus();
+}
+
+function resetTab(tab) {
+  state[tab] = { rows: [], headers: [], sortCol: -1, sortDir: 1 };
+  document.getElementById('badge-' + tab).textContent = '0';
+  document.getElementById('upload-' + tab).style.display = 'block';
+  document.getElementById('search-' + tab).style.display = 'none';
+  document.getElementById('file-' + tab).value = '';
+}
+
+// Drag and drop na zona de upload
+['dados','excluidos'].forEach(tab => {
+  setTimeout(() => {
+    const zone = document.querySelector(`#upload-${tab} .upload-zone`);
+    if (!zone) return;
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--text2)'; });
+    zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.style.borderColor = '';
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        const input = document.getElementById('file-' + tab);
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        loadFile({ target: { files: [file] } }, tab);
+      }
+    });
+  }, 100);
+});
+</script>
+</body>
+</html>
